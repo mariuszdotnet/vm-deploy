@@ -412,12 +412,6 @@
         "[resourceId('Microsoft.Network/loadBalancers/', parameters('pLoadBalancerName'))]"
       ]
     }
-  ],
-    "outputs": {
-        "pResourceGroupName": {
-            "value": "[parameters('pResourceGroupName')]",
-            "type": "string"
-        }
-    }
+  ]
 }
 
