@@ -1,0 +1,115 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+  "parameters": {
+    "pResourceGroupName": {
+       "Value": "dhtest-rg"
+    },
+    
+    "pVNETResourceGroupName": {
+       "Value": "dhvnet-rg"
+    },
+    "pVNETName": {
+       "Value": "dhtest-rg"
+    },
+
+    "pVMSubnetName": {
+       "Value": "GLOBAL-DEV-GLB-01-NET-WEB-01"
+    },
+
+    "pDisksLocation": {
+       "Value": "East US"
+    },
+
+    "pDataDiskSize": {
+ "Value": 128
+    },
+
+    "pStorageAccountType": {
+ "Value": "Standard_LRS"
+    },
+
+    "pAvailabilitySetName": {
+ "Value": "AVS001"
+    },
+    "pLoadBalancerName": {
+ "Value": "ILB001"
+    },
+    "pLoadBalancerIP": {
+      "value": "0.0.0.0"
+    },
+
+    "pVMNamePrefix": {
+ "Value": "VM"
+    },
+    
+    "pNumVMs": {
+      "value": 2
+    },
+
+
+    "pVMsize": {
+      "Value": "Standard_D4_v2"
+    },
+
+    "pOSpublisher": {
+      "Value": "Canonical"
+    },
+    "pOSoffer": {
+      "value": "UbuntuServer"
+    },
+    "pOSsku": {
+      "value": "17.04"
+    },
+    "pOSversion": {
+      "Value": "latest"
+    },
+
+    "pAdminUsername": {
+      "Value": "admindhl"
+    },
+    "pAdminPassword": {
+      "Value": "11MK84ghjb!!"
+    },
+
+    "pModulesUrl": {
+
+      "Value": "https://github.com/Azure/azure-quickstart-templates/raw/master/dsc-extension-azure-automation-pullserver/UpdateLCMforAAPull.zip"
+    },
+    "pConfigurationFunction": {
+      "Value": "UpdateLCMforAAPull.ps1\\ConfigureLCMforAAPull"
+    },
+    "pRegistrationKey": {
+      "Value": "<Key>"
+    },
+    "pRegistrationUrl": {
+      "Value": "https://eus2-agentservice-prod-1.azure-automation.net/accounts/b6e02c05-a9be-48f4-a428-0d0cf4c0f7bc"
+    },
+    "pNodeConfigurationName": {
+      "Value": "VM.webserver"
+    },
+    "pConfigurationMode": {
+      "Value": "ApplyAndMonitor"
+    },
+    "pConfigurationModeFrequencyMins": {
+      "Value": 15
+    },
+    "pRefreshFrequencyMins": {
+      "Value": 30
+    },
+    "pRebootNodeIfNeeded": {
+      "Value": true
+    },
+    "pActionAfterReboot": {
+      "Value": "ContinueConfiguration"
+    },
+    "pAllowModuleOverwrite": {
+      "Value": false
+    },
+    "pTimestamp": {
+      "Value": "2017/06/19"
+    }
+
+  }
+
+}

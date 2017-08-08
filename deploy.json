@@ -1,0 +1,505 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+  "parameters": {
+    "pResourceGroupName": {
+      "type": "string"
+    },
+    
+    "pVNETResourceGroupName": {
+      "type": "string"
+    },
+    "pVNETName": {
+      "type": "string"
+    },
+
+    "pVMSubnetName": {
+      "type": "string"
+    },
+
+    "pDisksLocation": {
+      "defaultValue": "East US",
+      "type": "string"
+    },
+
+    "pDataDiskSize": {
+      "defaultValue": 128,
+      "type": "int"
+    },
+
+    "pStorageAccountType": {
+          "type": "string",
+          "defaultValue": "Standard_LRS",
+          "allowedValues": [
+            "Standard_LRS",
+            "Standard_GRS",
+            "Standard_RAGRS",
+            "Standard_ZRS",
+            "Premium_LRS"
+          ],
+          "metadata": {
+            "description": "Storage Account type."
+          }
+    },
+
+    "pAvailabilitySetName": {
+      "type": "string"
+    },
+    "pLoadBalancerName": {
+      "type": "string"
+    },
+    "pLoadBalancerIP": {
+      "defaultValue": "0.0.0.0",
+      "type": "string"
+    },
+
+    "pVMNamePrefix": {
+      "type": "string"
+    },
+    "pNumVMs": {
+      "defaultValue": 3,
+      "type": "int",
+      "minValue": 1
+    },
+    "pVMsize": {
+      "type": "string"
+    },
+
+    "pOSpublisher": {
+      "defaultValue": "MicrosoftWindowsServer",
+      "type": "string"
+    },
+    "pOSoffer": {
+      "defaultValue": "WindowsServer",
+      "type": "string"
+    },
+    "pOSsku": {
+      "defaultValue": "2016-Datacenter",
+      "type": "string"
+    },
+    "pOSversion": {
+      "defaultValue": "latest",
+      "type": "string"
+    },
+
+    "pAdminUsername": {
+      "type": "string"
+    },
+    "pAdminPassword": {
+      "type": "securestring"
+    },
+
+    "pModulesUrl": {
+      "type": "string",
+      "defaultValue": "https://github.com/Azure/azure-quickstart-templates/raw/master/dsc-extension-azure-automation-pullserver/UpdateLCMforAAPull.zip",
+      "metadata": {
+        "description": "URL for the DSC configuration package. NOTE: Can be a Github url(raw) to the zip file (this is the default value)"
+      }
+    },
+    "pConfigurationFunction": {
+      "type": "string",
+      "defaultValue": "UpdateLCMforAAPull.ps1\\ConfigureLCMforAAPull",
+      "metadata": {
+        "description": "DSC configuration function to call. Should contain filename and function in format fileName.ps1\\configurationfunction"
+      }
+    },
+    "pRegistrationKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Registration key to use to onboard to the Azure Automation DSC pull/reporting server"
+      }
+    },
+    "pRegistrationUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Registration url of the Azure Automation DSC pull/reporting server"
+      }
+    },
+    "pNodeConfigurationName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the node configuration, on the Azure Automation DSC pull server, that this node will be configured as"
+      }
+    },
+    "pConfigurationMode": {
+      "type": "string",
+      "defaultValue": "ApplyAndMonitor",
+      "allowedValues": [
+        "ApplyOnly",
+        "ApplyAndMonitor",
+        "ApplyAndAutoCorrect"
+      ],
+      "metadata": {
+        "description": "DSC agent (LCM) configuration mode setting. ApplyOnly, ApplyAndMonitor, or ApplyAndAutoCorrect"
+      }
+    },
+    "pConfigurationModeFrequencyMins": {
+      "type": "int",
+      "defaultValue": 15,
+      "metadata": {
+        "description": "DSC agent (LCM) configuration mode frequency setting, in minutes"
+      }
+    },
+    "pRefreshFrequencyMins": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "DSC agent (LCM) refresh frequency setting, in minutes"
+      }
+    },
+    "pRebootNodeIfNeeded": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "DSC agent (LCM) rebootNodeIfNeeded setting"
+      }
+    },
+    "pActionAfterReboot": {
+      "type": "string",
+      "defaultValue": "ContinueConfiguration",
+      "allowedValues": [
+        "ContinueConfiguration",
+        "StopConfiguration"
+      ],
+      "metadata": {
+        "description": "DSC agent (LCM) actionAfterReboot setting. ContinueConfiguration or StopConfiguration"
+      }
+    },
+    "pAllowModuleOverwrite": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "DSC agent (LCM) allowModuleOverwrite setting"
+      }
+    },
+    "pTimestamp": {
+      "type": "string",
+      "metadata": {
+        "description": "The current datetime, as a string, to force the request to go through ARM even if all fields are the same as last ARM deployment of this template; example in parameters file is in MM/dd/yyyy H:mm:ss tt format"
+      }
+    }
+
+  },
+
+    "variables": {
+      "apiVersion": "2016-01-01",
+      "StorageAPIVersion": "2016-01-01",
+      "NumDisksPerVM": 1,
+      "vnetID": "[resourceId(parameters('pVNETResourceGroupName'), 'Microsoft.Network/virtualNetworks', parameters('pVNETName'))]",
+      "APPSubnetID": "[concat(variables('vnetID'),'/subnets/', parameters('pVMSubnetName'))]",
+      "TotalNumDisks": "[mul(variables('NumDisksPerVM'),parameters('pNumVMs'))]",
+      "APPinternalLoadBalancerID": "[resourceId('Microsoft.Network/loadBalancers', parameters('pLoadBalancerName'))]",
+      "APPinternalLoadBalancerIPConfig": "[concat(variables('APPinternalLoadBalancerID'),'/frontendIPConfigurations/',parameters('pLoadBalancerName'))]",
+      "APPinternalLoadBalancerBackendPool": "[concat(variables('APPinternalLoadBalancerID'),'/backendAddressPools/',parameters('pLoadBalancerName'))]",
+      "APPinternalLoadBalancerProbe": "[concat(variables('APPinternalLoadBalancerID'),'/probes/','LBProbe-443tcp')]",
+      "DisksArray": [
+      ]
+
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/disks",
+      "name": "[concat(parameters('pVMNamePrefix'), padLeft( copyIndex(1), 2, '0'), '-datadisk00' )]",
+      "copy": {
+        "name": "ManagedDisksCreation",
+        "count": "[variables('TotalNumDisks')]"
+      },
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-04-30-preview",
+      "properties": {
+        "creationData": {
+          "createOption": "Empty"
+        },
+        "accountType": "[parameters('pStorageAccountType')]",
+        "diskSizeGB": "[parameters('pDataDiskSize')]"
+      }
+    },
+    {
+      "type": "Microsoft.Compute/availabilitySets",
+      "name": "[parameters('pAvailabilitySetName')]",
+      "apiVersion": "2016-04-30-preview",
+      "sku": {
+        "name": "Aligned"
+      },
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "platformUpdateDomainCount": 5,
+        "platformFaultDomainCount": 3
+      },
+
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(parameters('pVMNamePrefix'), padLeft( copyIndex(1), 2, '0') )]",      
+      "apiVersion": "2016-04-30-preview",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "count": "[parameters('pNumVMs')]",
+        "name": "CreateVMs"
+      },
+      "properties": {
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets/', parameters('pAvailabilitySetName'))]"
+        },
+        "hardwareProfile": {
+          "vmSize": "[parameters('pvmsize')]"
+        },
+        "storageProfile": {
+          "dataDisks": [
+            {
+              "name": "[concat(parameters('pVMNamePrefix'),padLeft( string( mul(copyIndex(1),variables('NumDisksPerVM')) ), 2, '0'),'-datadisk00')]",
+              "lun": 0,
+              "managedDisk": {
+                "id": "[resourceId('Microsoft.Compute/disks', concat(parameters('pVMNamePrefix'),padLeft( string( mul(copyIndex(1),variables('NumDisksPerVM')) ), 2, '0' ),'-datadisk00'))]"
+              },
+              "caching": "None",
+              "createOption": "Attach"
+            }
+          ],
+          "imageReference": {
+            "publisher": "[parameters('pOSpublisher')]",
+            "offer": "[parameters('pOSoffer')]",
+            "sku": "[parameters('pOSsku')]",
+            "version": "[parameters('pOSversion')]"
+          },
+          "osDisk": {
+            "name": "[concat(parameters('pVMNamePrefix'),padLeft( copyIndex(1), 2, '0' ), '-OSdisk')]",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "[parameters('pStorageAccountType')]"
+            }
+          }
+        },
+        "osProfile": {
+          "computerName": "[concat(parameters('pVMNamePrefix'),padLeft( copyIndex(1), 2, '0' ) )]",
+          "adminUsername": "[parameters('pAdminUsername')]",
+          "secrets": [],
+          "adminPassword": "[parameters('pAdminPassword')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces/', concat(parameters('pVMNamePrefix'), padLeft( copyIndex(1), 2, '0' ), '-int00'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "type": "extensions",
+          "name": "Microsoft.Powershell.DSC",
+          "apiVersion": "2016-03-30",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines',concat(parameters('pVMNamePrefix'), padLeft( copyIndex(1), 2, '0' ) ))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.9",
+            "autoUpgradeMinorVersion": true,
+            "protectedSettings": {
+              "Items": {
+                "registrationKeyPrivate": "[parameters('pRegistrationKey')]"
+              }
+            },
+            "settings": {
+              "modulesUrl": "[parameters('pModulesUrl')]",
+              "SasToken": "",
+              "configurationFunction": "[parameters('pConfigurationFunction')]",
+              "Properties": [
+                {
+                  "Name": "RegistrationKey",
+                  "Value": {
+                    "UserName": "PLACEHOLDER_DONOTUSE",
+                    "Password": "PrivateSettingsRef:registrationKeyPrivate"
+                  },
+                  "TypeName": "System.Management.Automation.PSCredential"
+                },
+                {
+                  "Name": "RegistrationUrl",
+                  "Value": "[parameters('pRegistrationUrl')]",
+                  "TypeName": "System.String"
+                },
+                {
+                  "Name": "NodeConfigurationName",
+                  "Value": "[parameters('pNodeConfigurationName')]",
+                  "TypeName": "System.String"
+                },
+                {
+                  "Name": "ConfigurationMode",
+                  "Value": "[parameters('pConfigurationMode')]",
+                  "TypeName": "System.String"
+                },
+                {
+                  "Name": "ConfigurationModeFrequencyMins",
+                  "Value": "[parameters('pConfigurationModeFrequencyMins')]",
+                  "TypeName": "System.Int32"
+                },
+                {
+                  "Name": "RefreshFrequencyMins",
+                  "Value": "[parameters('pRefreshFrequencyMins')]",
+                  "TypeName": "System.Int32"
+                },
+                {
+                  "Name": "RebootNodeIfNeeded",
+                  "Value": "[parameters('pRebootNodeIfNeeded')]",
+                  "TypeName": "System.Boolean"
+                },
+                {
+                  "Name": "ActionAfterReboot",
+                  "Value": "[parameters('pActionAfterReboot')]",
+                  "TypeName": "System.String"
+                },
+                {
+                  "Name": "AllowModuleOverwrite",
+                  "Value": "[parameters('pAllowModuleOverwrite')]",
+                  "TypeName": "System.Boolean"
+                },
+                {
+                  "Name": "Timestamp",
+                  "Value": "[parameters('pTimestamp')]",
+                  "TypeName": "System.String"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/availabilitySets/', parameters('pAvailabilitySetName'))]",
+        "CreateNICs",
+        "ManagedDisksCreation"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/loadBalancers",
+      "name": "[parameters('pLoadBalancerName')]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "[parameters('pLoadBalancerName')]",
+            "properties": {
+              "privateIPAddress": "[parameters('pLoadBalancerIP')]",
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('APPSubnetID')]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[parameters('pLoadBalancerName')]"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "LBRule-443to443tcp",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('APPinternalLoadBalancerIPConfig')]"
+              },
+              "frontendPort": 443,
+              "backendPort": 443,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 4,
+              "protocol": "Tcp",
+              "loadDistribution": "Default",
+              "backendAddressPool": {
+                "id": "[variables('APPinternalLoadBalancerBackendPool')]"
+              },
+              "probe": {
+                "id": "[variables('APPinternalLoadBalancerProbe')]"
+              }
+            }
+          },
+          {
+            "name": "LBRule-80to80tcp",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('APPinternalLoadBalancerIPConfig')]"
+              },
+              "frontendPort": 80,
+              "backendPort": 80,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 4,
+              "protocol": "Tcp",
+              "loadDistribution": "Default",
+              "backendAddressPool": {
+                "id": "[variables('APPinternalLoadBalancerBackendPool')]"
+              },
+              "probe": {
+                "id": "[variables('APPinternalLoadBalancerProbe')]"
+              }
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "LBProbe-443tcp",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 443,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 3
+            }
+          }
+        ],
+        "inboundNatRules": [],
+        "outboundNatRules": [],
+        "inboundNatPools": []
+      },
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(parameters('pVMNamePrefix'), padLeft( copyIndex(1), 2, '0' ), '-int00' )]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "count": "[parameters('pNumVMs')]",
+        "name": "CreateNICs"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "default-ip-config",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('APPSubnetID')]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[variables('APPinternalLoadBalancerBackendPool')]"
+                }
+              ]
+            }
+          }
+        ],
+        "dnsSettings": {
+          "dnsServers": []
+        },
+        "enableIPForwarding": false
+      },
+      "resources": [],
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/loadBalancers/', parameters('pLoadBalancerName'))]"
+      ]
+    }
+  ],
+    "outputs": {
+        "pResourceGroupName": {
+            "value": "[parameters('pResourceGroupName')]",
+            "type": "string"
+        }
+    }
+}
+
